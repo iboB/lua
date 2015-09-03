@@ -836,7 +836,7 @@ static int num2straux (char *buff, lua_Number x) {
   else if (x == 0) {  /* can be -0... */
     sprintf(buff, LUA_NUMBER_FMT, x);
     strcat(buff, "x0p+0");  /* reuses '0/-0' from 'sprintf'... */
-    return strlen(buff);
+    return (int)strlen(buff); /* Custom change: fixed 64-bit compilation warning */
   }
   else {
     int e;
@@ -1194,7 +1194,7 @@ static KOption getoption (Header *h, const char **fmt, int *size) {
 ** 'psize' is filled with option's size, 'notoalign' with its
 ** alignment requirements.
 ** Local variable 'size' gets the size to be aligned. (Kpadal option
-** always gets its full alignment, other options are limited by 
+** always gets its full alignment, other options are limited by
 ** the maximum alignment ('maxalign'). Kchar option needs no alignment
 ** despite its size.
 */
