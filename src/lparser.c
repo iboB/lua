@@ -743,14 +743,14 @@ static void constructor (LexState *ls, expdesc *t) {
 /* }====================================================================== */
 
 
-
-static void parlist (LexState *ls) {
-  /* parlist -> [ param { ',' param } ] */
+/* Custom change: parclose added for || functions */
+static void parlist (LexState *ls, int parclose) {
+  /* parlist -> [ param { `,' param } ] */
   FuncState *fs = ls->fs;
   Proto *f = fs->f;
   int nparams = 0;
   f->is_vararg = 0;
-  if (ls->t.token != ')') {  /* is 'parlist' not empty? */
+  if (ls->t.token != parclose) {  /* is 'parlist' not empty? */
     do {
       switch (ls->t.token) {
         case TK_NAME: {  /* param -> NAME */
@@ -785,13 +785,34 @@ static void body (LexState *ls, expdesc *e, int ismethod, int line) {
     new_localvarliteral(ls, "self");  /* create 'self' parameter */
     adjustlocalvars(ls, 1);
   }
-  parlist(ls);
+  parlist(ls, ')');
   checknext(ls, ')');
   statlist(ls);
   new_fs.f->lastlinedefined = ls->linenumber;
   check_match(ls, TK_END, TK_FUNCTION, line);
   codeclosure(ls, e);
   close_func(ls);
+}
+
+/* Custom change: anonymous function defined with |<args>| <code> END */
+static void litbody (LexState *ls, expdesc *e, int line) {
+    /* litbody ->  '|' parlist '|' block END */
+    FuncState new_fs;
+    BlockCnt bl;
+    new_fs.f = addprototype(ls);
+    new_fs.f->linedefined = line;
+    open_func(ls, &new_fs, &bl);
+
+    /* This is read by the parser in simpleexp */
+    /* checknext(ls, '|'); */
+
+    parlist(ls, '|');
+    checknext(ls, '|');
+    statlist(ls);
+    new_fs.f->lastlinedefined = ls->linenumber;
+    check_match(ls, TK_END, TK_FUNCTION, line);
+    codeclosure(ls, e);
+    close_func(ls);
 }
 
 
@@ -807,6 +828,7 @@ static int explist (LexState *ls, expdesc *v) {
   return n;
 }
 
+static void simpleexp(LexState *ls, expdesc *v); /* Custom change: literal arguments without parentheses */
 
 static void funcargs (LexState *ls, expdesc *f, int line) {
   FuncState *fs = ls->fs;
@@ -831,6 +853,11 @@ static void funcargs (LexState *ls, expdesc *f, int line) {
     case TK_STRING: {  /* funcargs -> STRING */
       codestring(ls, &args, ls->t.seminfo.ts);
       luaX_next(ls);  /* must use 'seminfo' before 'next' */
+      break;
+    }
+    case '|': /* Custom change: || function is literal */
+    case TK_FLT: case TK_INT: case TK_TRUE: case TK_FALSE: { /* Custom change: literal arguments without parentheses */
+      simpleexp(ls, &args);
       break;
     }
     default: {
@@ -911,7 +938,9 @@ static void suffixedexp (LexState *ls, expdesc *v) {
         funcargs(ls, v, line);
         break;
       }
-      case '(': case TK_STRING: case '{': {  /* funcargs */
+      case '(': case TK_STRING: case '{': /* funcargs */
+      case '|': /* Custom change: || function is literal */
+      case TK_FLT: case TK_INT: case TK_TRUE: case TK_FALSE: {  /* Custom change: literal arguments without parentheses */
         luaK_exp2nextreg(fs, v);
         funcargs(ls, v, line);
         break;
@@ -968,6 +997,12 @@ static void simpleexp (LexState *ls, expdesc *v) {
       body(ls, v, 0, ls->linenumber);
       return;
     }
+    case '|': { /* Custom change: anonymous function defined with |<args>| <code> END */
+      luaX_next(ls);
+      litbody(ls, v, ls->linenumber);
+      return;
+    }
+
     default: {
       suffixedexp(ls, v);
       return;
