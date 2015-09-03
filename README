@@ -4,3 +4,21 @@ This is Lua 5.3.1, released on 10 Jun 2015.
 For installation instructions, license details, and
 further information about Lua, see doc/readme.html.
 
+FORK NOTES!!
+
+* Added CMakeLists.txt (with a few configuration options)
+* Fixed some 64-bit compilation warnings
+* Parser change: function calls with all literal types of arguments without
+parentheses (not only strings)
+* Added support for new Ruby-style anonymous function definition (with pipes)
+
+    foo = |args|
+        code
+    end
+
+* The new function syntax is also interpreted as literal
+
+    foo || code end
+    -- is eqiuvalent to
+    foo(function () code end)
+
